@@ -11,6 +11,7 @@ const fieldLabels: Record<string, string> = {
   turma_id: "Turma",
   email: "E-mail",
   senha: "Senha",
+  itens: "Itens da chamada",
   bairro: "Bairro",
   telefone: "Telefone",
 };

@@ -39,7 +39,7 @@ async def calcular_e_gravar_deslocamento(
     matricula = (
         await db.execute(
             select(Matricula)
-            .where(Matricula.aluno_id == aluno.id, Matricula.status == "ativa", Matricula.rede_id == usuario.rede_id)
+            .where(Matricula.aluno_id == aluno.id, Matricula.status == "ATIVA", Matricula.rede_id == usuario.rede_id)
             .limit(1)
         )
     ).scalar_one_or_none()
@@ -65,10 +65,20 @@ async def calcular_e_gravar_deslocamento(
     return {
         "aluno_id": aluno.id,
         "escola_id": escola.id,
+        "escola_nome": escola.nome,
+        "origem": {"latitude": aluno.latitude, "longitude": aluno.longitude},
+        "destino": {"latitude": escola.latitude, "longitude": escola.longitude},
         "distancia_metros": resultado.distancia_metros,
         "tempo_deslocamento_min": resultado.tempo_minutos,
         "metodo": resultado.metodo,
         "modal": resultado.modal,
+        # GeoJSON LineString coordinates: [lon, lat]
+        "geometria": resultado.geometria,
+        "mapa_osm_url": (
+            "https://www.openstreetmap.org/directions?"
+            f"engine=fossgis_osrm_car&route={aluno.latitude}%2C{aluno.longitude}%3B"
+            f"{escola.latitude}%2C{escola.longitude}"
+        ),
     }
 
 

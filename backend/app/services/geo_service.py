@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import math
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 import httpx
 
@@ -13,7 +13,11 @@ MODAL_VELOCIDADE_KMH = {
     "outro": 15.0,
 }
 
-OSRM_URL = "https://router.project-osrm.org/route/v1/driving/{lon1},{lat1};{lon2},{lat2}?overview=false"
+# overview=full + geojson para desenhar a rota no mapa (OSRM público, gratuito).
+OSRM_URL = (
+    "https://router.project-osrm.org/route/v1/driving/"
+    "{lon1},{lat1};{lon2},{lat2}?overview=full&geometries=geojson"
+)
 
 
 @dataclass
@@ -22,6 +26,7 @@ class ResultadoDeslocamento:
     tempo_minutos: int
     metodo: str
     modal: str
+    geometria: list[list[float]] = field(default_factory=list)  # [[lon, lat], ...]
 
 
 def haversine_metros(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -39,20 +44,29 @@ def estimar_tempo_minutos(distancia_metros: float, modal: str) -> int:
     return max(1, int(round(horas * 60)))
 
 
-async def distancia_viaria_metros(lat1: float, lon1: float, lat2: float, lon2: float) -> tuple[float, str]:
-    """Distância por malha viária via OSRM; fallback Haversine × 1.35 (fator de ruas)."""
+async def distancia_viaria_metros(
+    lat1: float, lon1: float, lat2: float, lon2: float
+) -> tuple[float, str, list[list[float]]]:
+    """Distância por malha viária via OSRM; fallback Haversine × 1.35."""
     url = OSRM_URL.format(lon1=lon1, lat1=lat1, lon2=lon2, lat2=lat2)
     try:
-        async with httpx.AsyncClient(timeout=8.0) as client:
+        async with httpx.AsyncClient(timeout=12.0) as client:
             response = await client.get(url)
             if response.status_code == 200:
                 data = response.json()
                 routes = data.get("routes") or []
                 if routes:
-                    return float(routes[0]["distance"]), "osrm_malha_viaria"
+                    geometry = routes[0].get("geometry") or {}
+                    coords = geometry.get("coordinates") or []
+                    return float(routes[0]["distance"]), "osrm_malha_viaria", coords
     except Exception:
         pass
-    return haversine_metros(lat1, lon1, lat2, lon2) * 1.35, "haversine_ajustado"
+    # Fallback em linha reta (dois pontos) para o mapa.
+    return (
+        haversine_metros(lat1, lon1, lat2, lon2) * 1.35,
+        "haversine_ajustado",
+        [[lon1, lat1], [lon2, lat2]],
+    )
 
 
 async def calcular_deslocamento(
@@ -62,11 +76,14 @@ async def calcular_deslocamento(
     lon_destino: float,
     modal: str = "a_pe",
 ) -> ResultadoDeslocamento:
-    distancia, metodo = await distancia_viaria_metros(lat_origem, lon_origem, lat_destino, lon_destino)
+    distancia, metodo, geometria = await distancia_viaria_metros(
+        lat_origem, lon_origem, lat_destino, lon_destino
+    )
     modal_norm = modal if modal in MODAL_VELOCIDADE_KMH else "outro"
     return ResultadoDeslocamento(
         distancia_metros=round(distancia, 2),
         tempo_minutos=estimar_tempo_minutos(distancia, modal_norm),
         metodo=metodo,
         modal=modal_norm,
+        geometria=geometria,
     )

@@ -97,7 +97,7 @@ async def ambiente_por_bairro(db: AsyncSession, rede_id: int, bairro: str | None
             func.count(Frequencia.id).label("registros"),
             presencas_expr.label("presencas"),
         )
-        .outerjoin(Matricula, (Matricula.aluno_id == Aluno.id) & (Matricula.status == "ativa"))
+        .outerjoin(Matricula, (Matricula.aluno_id == Aluno.id) & (Matricula.status == "ATIVA"))
         .outerjoin(Turma, Turma.id == Matricula.turma_id)
         .outerjoin(Usuario, Usuario.id == Turma.professor_id)
         .outerjoin(Frequencia, Frequencia.aluno_id == Aluno.id)

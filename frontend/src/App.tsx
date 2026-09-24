@@ -103,7 +103,7 @@ function App() {
       turma_id: classId,
       data: date,
       ordem: 1,
-      registros: students.map((student) => ({ aluno_id: student.aluno_id, presente: presence[student.aluno_id] ?? true })),
+      itens: students.map((student) => ({ aluno_id: student.aluno_id, presente: presence[student.aluno_id] ?? true })),
     }),
     [classId, date, students, presence],
   );
