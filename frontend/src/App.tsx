@@ -112,7 +112,11 @@ function App() {
     if (typeof classId !== "number" || !students.length) return;
     try {
       if (!navigator.onLine) {
-        await db.pendingCalls.add({ payload, createdAt: Date.now() });
+        await db.pendingCalls.put({
+          key: `${classId}-${date}-1`,
+          payload,
+          createdAt: Date.now(),
+        });
         await refreshPending();
         setMessage("Chamada salva offline. Será sincronizada quando houver conexão.");
         return;
