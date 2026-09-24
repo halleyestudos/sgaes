@@ -1,4 +1,4 @@
-# SGA-EDU
+﻿# SGA-EDU
 
 Sistema de Gestão Acadêmica para redes municipais de ensino.
 
@@ -68,6 +68,8 @@ Funcional:
 - CRUD de escola, ano letivo, turma e aluno
 - matrícula, transferência e encerramento
 - frequência, consolidação e busca ativa
+- cadastro ampliado (Censo, responsáveis, histórico escolar)
+- geo/deslocamento, painel por bairro, LGPD básica
 - compose de produção com Caddy
 
 Ainda não funcional:
