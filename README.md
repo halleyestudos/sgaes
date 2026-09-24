@@ -42,15 +42,44 @@ Usuários de demonstração após o seed:
 
 O `rede_id` não vem mais do frontend. Ele entra no JWT no login e as rotas usam só esse valor.
 
-## Produção (Hostinger VPS / Docker)
+## Produção no Dokploy (Hostinger VPS) — recomendado
+
+Arquivo: `docker-compose.dokploy.yml` (sem Caddy; o Traefik do Dokploy cuida de HTTPS).
+
+1. Em https://admin.sgaes.tech/ crie um **Project** → **Compose**.
+2. Source: GitHub `halleyestudos/sgaes`, branch `main`.
+3. Compose path: `docker-compose.dokploy.yml`.
+4. Aba **Environment** (valores reais, não os de exemplo):
+
+```env
+POSTGRES_PASSWORD=...senha-forte...
+SECRET_KEY=...chave-longa-aleatoria...
+CORS_ORIGINS=https://sgaes.tech,https://www.sgaes.tech
+JWT_EXPIRE_MINUTES=480
+RUN_SEED=true
+```
+
+5. Aba **Domains**:
+   - Host: `sgaes.tech` (e opcionalmente `www.sgaes.tech`)
+   - Service: `web`
+   - Port: `80`
+   - HTTPS / Let's Encrypt: ligado
+6. **Deploy**. Depois do primeiro seed bem-sucedido, mude `RUN_SEED=false` e redeploy.
+7. Login demo: `gestor@sga.local` / `Gestor@123`
+
+O nginx do `web` encaminha `/api`, `/health` e `/docs` para o serviço `api`.
+
+DNS: `A` de `sgaes.tech` (e `www`) → IP da VPS. `admin.sgaes.tech` já aponta para o Dokploy.
+
+## Produção alternativa (Compose + Caddy na própria VPS)
+
+Use se **não** estiver usando Dokploy/Traefik (conflita nas portas 80/443):
 
 ```powershell
 Copy-Item .env.prod.example .env
-# edite POSTGRES_PASSWORD, SECRET_KEY e DOMAIN
+# edite POSTGRES_PASSWORD, SECRET_KEY e DOMAIN=sgaes.tech
 docker compose -f docker-compose.prod.yml up -d --build
 ```
-
-O Caddy escuta 80/443, o front fica em `web` e a API em `/api`. O Postgres não é publicado na internet.
 
 ## Testes
 
