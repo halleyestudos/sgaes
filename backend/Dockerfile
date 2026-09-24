@@ -3,6 +3,9 @@ FROM python:3.12-slim
 WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 
+ARG CACHEBUST=1
+RUN echo "cachebust=$CACHEBUST"
+
 COPY pyproject.toml ./
 COPY app ./app
 COPY alembic ./alembic
