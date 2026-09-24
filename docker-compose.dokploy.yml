@@ -17,6 +17,9 @@ services:
   api:
     build:
       context: ./backend
+      args:
+        # força rebuild do entrypoint quando o compose muda
+        CACHEBUST: "20260924a"
     restart: unless-stopped
     environment:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
@@ -35,18 +38,18 @@ services:
           "CMD-SHELL",
           "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)\"",
         ]
-      interval: 10s
+      interval: 15s
       timeout: 5s
-      retries: 12
-      start_period: 60s
+      retries: 20
+      start_period: 120s
 
   web:
     build:
       context: ./frontend
     restart: unless-stopped
+    # Não bloqueia o front se o healthcheck da API demorar.
     depends_on:
-      api:
-        condition: service_healthy
+      - api
 
 volumes:
   postgres_data:
