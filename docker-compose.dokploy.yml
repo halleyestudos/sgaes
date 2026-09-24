@@ -13,14 +13,13 @@ services:
       interval: 10s
       timeout: 5s
       retries: 8
-    # Sem ports publicados: só a rede interna do Compose/Dokploy.
 
   api:
     build:
       context: ./backend
     restart: unless-stopped
     environment:
-      DATABASE_URL: postgresql+asyncpg://postgres:${POSTGRES_PASSWORD}@db:5432/sga
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       SECRET_KEY: ${SECRET_KEY}
       APP_ENV: production
       APP_DEBUG: "false"
@@ -30,16 +29,24 @@ services:
     depends_on:
       db:
         condition: service_healthy
-    # Porta 8000 fica só na rede interna; o Traefik do Dokploy
-    # aponta para o serviço web, que faz proxy de /api.
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "python -c \"import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)\"",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
 
   web:
     build:
       context: ./frontend
     restart: unless-stopped
     depends_on:
-      - api
-    # Porta 80 interna — no Dokploy, Domains → service=web, port=80.
+      api:
+        condition: service_healthy
 
 volumes:
   postgres_data:
