@@ -1,0 +1,9 @@
+{
+  "name": "SGA-EDU Diário de frequência",
+  "short_name": "SGA-EDU",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f4f1ea",
+  "theme_color": "#102a43",
+  "lang": "pt-BR"
+}
