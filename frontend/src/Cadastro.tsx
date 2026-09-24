@@ -28,6 +28,12 @@ import AlunoCompleto from "./AlunoCompleto";
 
 type Aba = "turmas" | "estrutura" | "alunos" | "completo";
 
+type Props = {
+  initialAba?: Aba;
+  initialAlunoId?: number | null;
+  onFocusConsumed?: () => void;
+};
+
 function messageFrom(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
@@ -37,8 +43,9 @@ function confirmInactivation(goingInactive: boolean) {
   return window.confirm("Inativar este registro? O histórico acadêmico será preservado.");
 }
 
-export default function Cadastro() {
-  const [aba, setAba] = useState<Aba>("turmas");
+export default function Cadastro({ initialAba, initialAlunoId, onFocusConsumed }: Props) {
+  const [aba, setAba] = useState<Aba>(initialAba ?? "turmas");
+  const [focusAlunoId, setFocusAlunoId] = useState<number | null>(initialAlunoId ?? null);
   const [students, setStudents] = useState<Aluno[]>([]);
   const [schools, setSchools] = useState<Escola[]>([]);
   const [schoolYears, setSchoolYears] = useState<AnoLetivo[]>([]);
@@ -120,6 +127,13 @@ export default function Cadastro() {
   useEffect(() => {
     void loadCatalog().catch((error) => setMessage(messageFrom(error, "Falha ao carregar cadastros.")));
   }, []);
+
+  useEffect(() => {
+    if (initialAlunoId == null) return;
+    setAba("completo");
+    setFocusAlunoId(initialAlunoId);
+    onFocusConsumed?.();
+  }, [initialAlunoId]);
 
   useEffect(() => {
     if (!workspaceClassId) {
@@ -455,7 +469,13 @@ export default function Cadastro() {
 
       <p className="feedback" role="status">{message}</p>
 
-      {aba === "completo" && <AlunoCompleto onChanged={() => void loadCatalog()} />}
+      {aba === "completo" && (
+        <AlunoCompleto
+          initialAlunoId={focusAlunoId}
+          onChanged={() => void loadCatalog()}
+          onInitialConsumed={() => setFocusAlunoId(null)}
+        />
+      )}
 
       {aba === "turmas" && (
         <div className="turma-workspace">

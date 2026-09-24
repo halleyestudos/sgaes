@@ -59,9 +59,11 @@ const emptyForm = {
 
 type Props = {
   onChanged?: () => void;
+  initialAlunoId?: number | null;
+  onInitialConsumed?: () => void;
 };
 
-export default function AlunoCompleto({ onChanged }: Props) {
+export default function AlunoCompleto({ onChanged, initialAlunoId, onInitialConsumed }: Props) {
   const [alunos, setAlunos] = useState<Aluno[]>([]);
   const [selectedId, setSelectedId] = useState("");
   const [form, setForm] = useState(emptyForm);
@@ -79,10 +81,12 @@ export default function AlunoCompleto({ onChanged }: Props) {
   const [mascara, setMascara] = useState<Record<string, unknown> | null>(null);
   const [rota, setRota] = useState<RotaDeslocamento | null>(null);
   const mapaRef = useRef<HTMLDivElement | null>(null);
+  const pendingFocusRef = useRef<number | null>(initialAlunoId ?? null);
 
   const load = async () => {
     const loaded = await getStudents();
     setAlunos(loaded);
+    return loaded;
   };
 
   const loadExtras = async (alunoId: number) => {
@@ -93,8 +97,27 @@ export default function AlunoCompleto({ onChanged }: Props) {
   };
 
   useEffect(() => {
-    void load().catch((error) => setMessage(error instanceof Error ? error.message : "Falha ao carregar alunos."));
+    void (async () => {
+      try {
+        const loaded = await load();
+        const focusId = pendingFocusRef.current ?? initialAlunoId;
+        if (focusId != null && loaded.some((item) => item.id === focusId)) {
+          pendingFocusRef.current = null;
+          await onSelectAluno(String(focusId), loaded);
+          onInitialConsumed?.();
+        }
+      } catch (error) {
+        setMessage(error instanceof Error ? error.message : "Falha ao carregar alunos.");
+      }
+    })();
   }, []);
+
+  useEffect(() => {
+    if (initialAlunoId == null) return;
+    pendingFocusRef.current = initialAlunoId;
+    if (!alunos.length) return;
+    void onSelectAluno(String(initialAlunoId), alunos).then(() => onInitialConsumed?.());
+  }, [initialAlunoId]);
 
   const setField = (key: keyof typeof emptyForm, value: string | boolean) => {
     setForm((current) => ({ ...current, [key]: value }));
@@ -181,7 +204,7 @@ export default function AlunoCompleto({ onChanged }: Props) {
     }
   }
 
-  async function onSelectAluno(id: string) {
+  async function onSelectAluno(id: string, lista?: Aluno[]) {
     setSelectedId(id);
     setMascara(null);
     setRota(null);
@@ -192,7 +215,8 @@ export default function AlunoCompleto({ onChanged }: Props) {
       setConsentimentos([]);
       return;
     }
-    const aluno = alunos.find((item) => item.id === Number(id));
+    const source = lista ?? alunos;
+    const aluno = source.find((item) => item.id === Number(id));
     if (aluno) fillFromAluno(aluno);
     await loadExtras(Number(id));
   }

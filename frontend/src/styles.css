@@ -71,6 +71,8 @@ main { max-width: 1180px; margin: 0 auto; padding: 34px 22px 90px; }
 .mapa-actions a { color: #0b5ed7; font-size: .85rem; }
 .correlacao-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
 .correlacao-row .linkish { padding: 8px 12px; white-space: nowrap; }
+.aluno-link { border: 0; background: transparent; padding: 0; color: #0b5ed7; font-weight: 700; font: inherit; cursor: pointer; text-align: left; text-decoration: underline; text-underline-offset: 2px; }
+.aluno-link:hover { color: #084298; }
 .modal-backdrop { position: fixed; inset: 0; background: rgba(16, 42, 67, .45); display: grid; place-items: center; z-index: 40; padding: 20px; }
 .modal-card { width: min(720px, 100%); background: #fffdf8; border-top: 3px solid #f4b942; padding: 22px; max-height: 90vh; overflow: auto; }
 @media (max-width: 900px) { .gestao-grid, .future-grid, .fields-3, .metrics-wide { grid-template-columns: 1fr; } }

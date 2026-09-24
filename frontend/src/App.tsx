@@ -11,6 +11,7 @@ const today = new Date().toISOString().slice(0, 10);
 function App() {
   const [session, setSessionState] = useState<Sessao | null>(() => getSession());
   const [mode, setMode] = useState<"professor" | "gestor" | "cadastro">("professor");
+  const [focusAlunoId, setFocusAlunoId] = useState<number | null>(null);
   const [classes, setClasses] = useState<Turma[]>([]);
   const [classId, setClassId] = useState<number | "">("");
   const [date, setDate] = useState(today);
@@ -158,10 +159,24 @@ function App() {
         <nav className="mode-switch" aria-label="Modo do sistema">
           <button className={mode === "professor" ? "active" : ""} onClick={() => setMode("professor")}>Chamada</button>
           <button className={mode === "gestor" ? "active" : ""} onClick={() => setMode("gestor")}>Painel gestor</button>
-          {canCadastro && <button className={mode === "cadastro" ? "active" : ""} onClick={() => setMode("cadastro")}>Cadastros</button>}
+          {canCadastro && (
+            <button
+              className={mode === "cadastro" ? "active" : ""}
+              onClick={() => {
+                setFocusAlunoId(null);
+                setMode("cadastro");
+              }}
+            >
+              Cadastros
+            </button>
+          )}
         </nav>
         {mode === "cadastro" && canCadastro ? (
-          <Cadastro />
+          <Cadastro
+            initialAba={focusAlunoId != null ? "completo" : undefined}
+            initialAlunoId={focusAlunoId}
+            onFocusConsumed={() => setFocusAlunoId(null)}
+          />
         ) : mode === "professor" ? (
           <section className="workspace">
             <div className="section-heading">
@@ -205,7 +220,18 @@ function App() {
             </div>
           </section>
         ) : (
-          <PainelGestao students={students} onToast={setMessage} />
+          <PainelGestao
+            students={students}
+            onToast={setMessage}
+            onOpenAlunoCadastro={
+              canCadastro
+                ? (alunoId) => {
+                    setFocusAlunoId(alunoId);
+                    setMode("cadastro");
+                  }
+                : undefined
+            }
+          />
         )}
       </main>
       <footer>

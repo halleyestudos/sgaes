@@ -21,9 +21,10 @@ import MapaRota from "./MapaRota";
 type Props = {
   students: Student[];
   onToast: (message: string) => void;
+  onOpenAlunoCadastro?: (alunoId: number) => void;
 };
 
-export default function PainelGestao({ students, onToast }: Props) {
+export default function PainelGestao({ students, onToast, onOpenAlunoCadastro }: Props) {
   const [stats, setStats] = useState<EstatisticasRede | null>(null);
   const [professores, setProfessores] = useState<Professor[]>([]);
   const [alerts, setAlerts] = useState<Alert[]>([]);
@@ -138,7 +139,20 @@ export default function PainelGestao({ students, onToast }: Props) {
               return (
                 <li key={String(item.aluno_id)} className="correlacao-row">
                   <div>
-                    <strong>{nome}</strong>
+                    {onOpenAlunoCadastro ? (
+                      <button
+                        type="button"
+                        className="aluno-link"
+                        onClick={() => {
+                          setRotaAluno(null);
+                          onOpenAlunoCadastro(alunoId);
+                        }}
+                      >
+                        {nome}
+                      </button>
+                    ) : (
+                      <strong>{nome}</strong>
+                    )}
                     <small>
                       {item.distancia_metros != null ? `${Math.round(Number(item.distancia_metros))} m` : "—"}
                       {" · "}
