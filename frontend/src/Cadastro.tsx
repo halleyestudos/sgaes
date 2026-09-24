@@ -6,6 +6,7 @@ import {
   createStudent,
   endEnrollment,
   enrollStudent,
+  getActiveEnrollments,
   getClassStudents,
   getClasses,
   getSchoolYears,
@@ -20,6 +21,7 @@ import {
   type AlunoTurma,
   type AnoLetivo,
   type Escola,
+  type MatriculaAtiva,
   type Turma,
 } from "./api";
 import AlunoCompleto from "./AlunoCompleto";
@@ -42,6 +44,7 @@ export default function Cadastro() {
   const [schoolYears, setSchoolYears] = useState<AnoLetivo[]>([]);
   const [classes, setClasses] = useState<Turma[]>([]);
   const [turmaAlunos, setTurmaAlunos] = useState<AlunoTurma[]>([]);
+  const [matriculasAtivas, setMatriculasAtivas] = useState<MatriculaAtiva[]>([]);
   const [message, setMessage] = useState("Carregando cadastros...");
   const [busy, setBusy] = useState(false);
 
@@ -106,6 +109,14 @@ export default function Cadastro() {
     setTurmaAlunos(loaded);
   };
 
+  const loadMatriculasAtivas = async (anoLetivoId?: number) => {
+    if (!anoLetivoId) {
+      setMatriculasAtivas([]);
+      return;
+    }
+    setMatriculasAtivas(await getActiveEnrollments(anoLetivoId));
+  };
+
   useEffect(() => {
     void loadCatalog().catch((error) => setMessage(messageFrom(error, "Falha ao carregar cadastros.")));
   }, []);
@@ -121,6 +132,12 @@ export default function Cadastro() {
     });
   }, [workspaceClassId]);
 
+  useEffect(() => {
+    const turma = classes.find((item) => item.id === Number(workspaceClassId));
+    const anoId = turma?.ano_letivo_id ?? (filterYearId ? Number(filterYearId) : undefined);
+    void loadMatriculasAtivas(anoId).catch(() => setMatriculasAtivas([]));
+  }, [workspaceClassId, filterYearId, classes]);
+
   const filteredClasses = useMemo(() => {
     return classes.filter((item) => {
       if (filterSchoolId && item.escola_id !== Number(filterSchoolId)) return false;
@@ -133,6 +150,12 @@ export default function Cadastro() {
   const schoolNameOf = (escolaId: number) => schools.find((item) => item.id === escolaId)?.nome ?? `Escola ${escolaId}`;
   const yearNameOf = (anoId: number) => schoolYears.find((item) => item.id === anoId)?.nome ?? `Ano ${anoId}`;
 
+  const enrollmentByAluno = useMemo(() => {
+    const map = new Map<number, MatriculaAtiva>();
+    for (const item of matriculasAtivas) map.set(item.aluno_id, item);
+    return map;
+  }, [matriculasAtivas]);
+
   const enrolledIds = useMemo(() => new Set(turmaAlunos.map((item) => item.aluno_id)), [turmaAlunos]);
   const availableStudents = useMemo(
     () => students.filter((item) => item.ativo && !enrolledIds.has(item.id)),
@@ -143,6 +166,11 @@ export default function Cadastro() {
     if (!term) return availableStudents;
     return availableStudents.filter((item) => item.nome.toLowerCase().includes(term));
   }, [availableStudents, studentSearch]);
+
+  const selectedEnrollment = matricularAlunoId ? enrollmentByAluno.get(Number(matricularAlunoId)) : undefined;
+  const willTransfer =
+    Boolean(selectedEnrollment) &&
+    selectedEnrollment!.turma_id !== Number(workspaceClassId);
 
   const transferTargets = useMemo(
     () => classes.filter((item) => item.ativa && item.id !== Number(workspaceClassId) && (!filterYearId || item.ano_letivo_id === Number(filterYearId))),
@@ -170,6 +198,7 @@ export default function Cadastro() {
       setStudents((current) => [...current, student]);
       setNovoAlunoNome("");
       await loadTurmaAlunos(workspaceClass.id);
+      await loadMatriculasAtivas(workspaceClass.ano_letivo_id);
       setMessage(`${student.nome} cadastrado e matriculado em ${workspaceClass.nome}.`);
     }, "Não foi possível cadastrar e matricular o aluno.");
   }
@@ -177,12 +206,59 @@ export default function Cadastro() {
   async function enrollExisting(event: FormEvent) {
     event.preventDefault();
     if (!workspaceClass || !matricularAlunoId) return;
+    const alunoId = Number(matricularAlunoId);
+    const nome = students.find((item) => item.id === alunoId)?.nome ?? "Aluno";
+    const existente = enrollmentByAluno.get(alunoId);
+
     await run(async () => {
-      await enrollStudent(Number(matricularAlunoId), workspaceClass.id, workspaceClass.ano_letivo_id);
-      const nome = students.find((item) => item.id === Number(matricularAlunoId))?.nome ?? "Aluno";
+      if (existente && existente.turma_id === workspaceClass.id) {
+        setMessage(`${nome} já está matriculado nesta turma.`);
+        return;
+      }
+
+      if (existente) {
+        const ok = window.confirm(
+          `${nome} já está em «${existente.turma_nome}». Transferir para «${workspaceClass.nome}»?`,
+        );
+        if (!ok) return;
+        await transferEnrollment(existente.matricula_id, workspaceClass.id, `Transferência para ${workspaceClass.nome}`);
+        setMatricularAlunoId("");
+        setStudentSearch("");
+        await loadTurmaAlunos(workspaceClass.id);
+        await loadMatriculasAtivas(workspaceClass.ano_letivo_id);
+        setMessage(`${nome} transferido de «${existente.turma_nome}» para «${workspaceClass.nome}».`);
+        return;
+      }
+
+      try {
+        await enrollStudent(alunoId, workspaceClass.id, workspaceClass.ano_letivo_id);
+      } catch (error) {
+        const msg = messageFrom(error, "");
+        if (msg.toLowerCase().includes("matrícula ativa")) {
+          const atuais = await getActiveEnrollments(workspaceClass.ano_letivo_id);
+          setMatriculasAtivas(atuais);
+          const ativa = atuais.find((item) => item.aluno_id === alunoId);
+          if (ativa) {
+            const ok = window.confirm(
+              `${nome} já está em «${ativa.turma_nome}». Transferir para «${workspaceClass.nome}»?`,
+            );
+            if (!ok) throw error;
+            await transferEnrollment(ativa.matricula_id, workspaceClass.id, `Transferência para ${workspaceClass.nome}`);
+            setMatricularAlunoId("");
+            setStudentSearch("");
+            await loadTurmaAlunos(workspaceClass.id);
+            await loadMatriculasAtivas(workspaceClass.ano_letivo_id);
+            setMessage(`${nome} transferido para «${workspaceClass.nome}».`);
+            return;
+          }
+        }
+        throw error;
+      }
+
       setMatricularAlunoId("");
       setStudentSearch("");
       await loadTurmaAlunos(workspaceClass.id);
+      await loadMatriculasAtivas(workspaceClass.ano_letivo_id);
       setMessage(`${nome} matriculado em ${workspaceClass.nome}.`);
     }, "Não foi possível matricular o aluno.");
   }
@@ -214,6 +290,7 @@ export default function Cadastro() {
     await run(async () => {
       await endEnrollment(item.matricula_id, motivo.trim());
       if (workspaceClassId) await loadTurmaAlunos(Number(workspaceClassId));
+      if (workspaceClass) await loadMatriculasAtivas(workspaceClass.ano_letivo_id);
       setMessage(`Matrícula de ${item.nome} encerrada.`);
     }, "Não foi possível encerrar a matrícula.");
   }
@@ -226,6 +303,7 @@ export default function Cadastro() {
     await run(async () => {
       await transferEnrollment(item.matricula_id, Number(transferTargetId), `Transferência de ${workspaceClass?.nome ?? "turma"}`);
       if (workspaceClassId) await loadTurmaAlunos(Number(workspaceClassId));
+      if (workspaceClass) await loadMatriculasAtivas(workspaceClass.ano_letivo_id);
       setMessage(`${item.nome} transferido.`);
     }, "Não foi possível transferir o aluno.");
   }
@@ -432,16 +510,34 @@ export default function Cadastro() {
 
                 <form className="form-panel" onSubmit={enrollExisting}>
                   <h3>Matricular aluno existente</h3>
+                  <p className="form-hint">
+                    Alunos já matriculados em outra turma neste ano podem ser transferidos para esta turma.
+                  </p>
                   <label>Buscar
                     <input value={studentSearch} onChange={(event) => setStudentSearch(event.target.value)} placeholder="Digite parte do nome" />
                   </label>
                   <label>Aluno
                     <select value={matricularAlunoId} onChange={(event) => setMatricularAlunoId(event.target.value)}>
                       <option value="">Selecione</option>
-                      {filteredAvailable.map((student) => <option key={student.id} value={student.id}>{student.nome}</option>)}
+                      {filteredAvailable.map((student) => {
+                        const ativa = enrollmentByAluno.get(student.id);
+                        const suffix = ativa ? ` · já em ${ativa.turma_nome}` : "";
+                        return (
+                          <option key={student.id} value={student.id}>
+                            {student.nome}{suffix}
+                          </option>
+                        );
+                      })}
                     </select>
                   </label>
-                  <button className="primary" type="submit" disabled={busy || !matricularAlunoId}>Matricular</button>
+                  {willTransfer && selectedEnrollment && (
+                    <p className="form-hint">
+                      Ao confirmar, {selectedEnrollment.aluno_nome} sairá de «{selectedEnrollment.turma_nome}» e entrará nesta turma.
+                    </p>
+                  )}
+                  <button className="primary" type="submit" disabled={busy || !matricularAlunoId}>
+                    {willTransfer ? "Transferir para esta turma" : "Matricular"}
+                  </button>
                 </form>
               </div>
 

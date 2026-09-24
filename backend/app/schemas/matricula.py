@@ -40,3 +40,13 @@ class AlunoTurmaRead(BaseModel):
     nome: str
     matricula_id: int
     status: str
+
+
+class MatriculaAtivaRead(BaseModel):
+    matricula_id: int
+    aluno_id: int
+    aluno_nome: str
+    turma_id: int
+    turma_nome: str
+    ano_letivo_id: int
+    status: str

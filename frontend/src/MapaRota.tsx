@@ -42,28 +42,42 @@ export default function MapaRota({ origem, destino, geometria = [], altura = 280
     let cancelled = false;
 
     void (async () => {
-      const L = await loadLeaflet();
-      if (cancelled || !ref.current) return;
+      try {
+        const L = await loadLeaflet();
+        if (cancelled || !ref.current) return;
 
-      map = L.map(ref.current).setView([origem.latitude, origem.longitude], 13);
-      L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-        maxZoom: 19,
-      }).addTo(map);
+        const latO = Number(origem.latitude);
+        const lonO = Number(origem.longitude);
+        const latD = Number(destino.latitude);
+        const lonD = Number(destino.longitude);
 
-      const casa = L.marker([origem.latitude, origem.longitude]).addTo(map).bindPopup("Residência do aluno");
-      const escola = L.marker([destino.latitude, destino.longitude]).addTo(map).bindPopup("Escola");
+        map = L.map(ref.current).setView([latO, lonO], 13);
+        L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+          attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
+          maxZoom: 19,
+        }).addTo(map);
 
-      const latLngs =
-        geometria.length >= 2
-          ? geometria.map((pair) => [pair[1], pair[0]] as [number, number])
-          : [
-              [origem.latitude, origem.longitude] as [number, number],
-              [destino.latitude, destino.longitude] as [number, number],
-            ];
+        const casa = L.marker([latO, lonO]).addTo(map).bindPopup("Residência do aluno");
+        const escola = L.marker([latD, lonD]).addTo(map).bindPopup("Escola");
 
-      const line = L.polyline(latLngs, { color: "#e76f51", weight: 4 }).addTo(map);
-      map.fitBounds(line.getBounds().extend(casa.getLatLng()).extend(escola.getLatLng()), { padding: [24, 24] });
+        const latLngs =
+          geometria.length >= 2
+            ? geometria.map((pair) => [Number(pair[1]), Number(pair[0])] as [number, number])
+            : [
+                [latO, lonO] as [number, number],
+                [latD, lonD] as [number, number],
+              ];
+
+        const line = L.polyline(latLngs, { color: "#e76f51", weight: 4 }).addTo(map);
+        map.fitBounds(line.getBounds().extend(casa.getLatLng()).extend(escola.getLatLng()), { padding: [24, 24] });
+        setTimeout(() => {
+          if (!cancelled && map) map.invalidateSize();
+        }, 80);
+      } catch (error) {
+        if (ref.current) {
+          ref.current.textContent = error instanceof Error ? error.message : "Falha ao carregar o mapa.";
+        }
+      }
     })();
 
     return () => {

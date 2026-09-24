@@ -52,7 +52,9 @@ async def calcular_e_gravar_deslocamento(
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Escola sem coordenadas.")
 
     modal = payload.modal_transporte or aluno.modal_transporte or "a_pe"
-    resultado = await calcular_deslocamento(aluno.latitude, aluno.longitude, escola.latitude, escola.longitude, modal)
+    lat_o, lon_o = float(aluno.latitude), float(aluno.longitude)
+    lat_d, lon_d = float(escola.latitude), float(escola.longitude)
+    resultado = await calcular_deslocamento(lat_o, lon_o, lat_d, lon_d, modal)
 
     if payload.persistir:
         aluno.distancia_metros = Decimal(str(resultado.distancia_metros))
@@ -66,8 +68,8 @@ async def calcular_e_gravar_deslocamento(
         "aluno_id": aluno.id,
         "escola_id": escola.id,
         "escola_nome": escola.nome,
-        "origem": {"latitude": aluno.latitude, "longitude": aluno.longitude},
-        "destino": {"latitude": escola.latitude, "longitude": escola.longitude},
+        "origem": {"latitude": lat_o, "longitude": lon_o},
+        "destino": {"latitude": lat_d, "longitude": lon_d},
         "distancia_metros": resultado.distancia_metros,
         "tempo_deslocamento_min": resultado.tempo_minutos,
         "metodo": resultado.metodo,
@@ -76,8 +78,7 @@ async def calcular_e_gravar_deslocamento(
         "geometria": resultado.geometria,
         "mapa_osm_url": (
             "https://www.openstreetmap.org/directions?"
-            f"engine=fossgis_osrm_car&route={aluno.latitude}%2C{aluno.longitude}%3B"
-            f"{escola.latitude}%2C{escola.longitude}"
+            f"engine=fossgis_osrm_car&route={lat_o}%2C{lon_o}%3B{lat_d}%2C{lon_d}"
         ),
     }
 

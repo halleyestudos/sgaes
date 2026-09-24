@@ -1,5 +1,6 @@
 import { useEffect, useState, type FormEvent } from "react";
 import {
+  calcularDeslocamento,
   getAlerts,
   getAmbienteBairro,
   getCorrelacaoGeo,
@@ -9,11 +10,13 @@ import {
   type Alert,
   type AmbienteBairro,
   type CorrelacaoGeo,
+  type DeslocamentoResult,
   type EstatisticasRede,
   type ModuloFuturo,
   type Professor,
   type Student,
 } from "./api";
+import MapaRota from "./MapaRota";
 
 type Props = {
   students: Student[];
@@ -29,6 +32,8 @@ export default function PainelGestao({ students, onToast }: Props) {
   const [futuros, setFuturos] = useState<ModuloFuturo[]>([]);
   const [bairroFiltro, setBairroFiltro] = useState("");
   const [avisoFuturo, setAvisoFuturo] = useState("");
+  const [rotaAluno, setRotaAluno] = useState<{ nome: string; result: DeslocamentoResult } | null>(null);
+  const [carregandoRota, setCarregandoRota] = useState<number | null>(null);
 
   const carregar = async () => {
     try {
@@ -63,6 +68,18 @@ export default function PainelGestao({ students, onToast }: Props) {
       onToast(error instanceof Error ? error.message : "Falha ao filtrar bairro.");
     }
   };
+
+  async function verTrajetoria(alunoId: number, nome: string) {
+    setCarregandoRota(alunoId);
+    try {
+      const result = await calcularDeslocamento(alunoId);
+      setRotaAluno({ nome, result });
+    } catch (error) {
+      onToast(error instanceof Error ? error.message : "Não foi possível carregar a trajetória.");
+    } finally {
+      setCarregandoRota(null);
+    }
+  }
 
   return (
     <section className="workspace gestao-workspace">
@@ -115,18 +132,32 @@ export default function PainelGestao({ students, onToast }: Props) {
             {correlacao ? ` · ${correlacao.amostra} aluno(s) com distância` : ""}
           </p>
           <ul className="plain-list compact">
-            {(correlacao?.itens || []).slice(0, 8).map((item) => (
-              <li key={String(item.aluno_id)}>
-                <strong>{String(item.nome)}</strong>
-                <small>
-                  {item.distancia_metros != null ? `${Math.round(Number(item.distancia_metros))} m` : "—"}
-                  {" · "}
-                  {item.tempo_deslocamento_min != null ? `${item.tempo_deslocamento_min} min` : "—"}
-                  {" · faltas "}
-                  {String(item.percentual_faltas)}%
-                </small>
-              </li>
-            ))}
+            {(correlacao?.itens || []).slice(0, 8).map((item) => {
+              const alunoId = Number(item.aluno_id);
+              const nome = String(item.nome);
+              return (
+                <li key={String(item.aluno_id)} className="correlacao-row">
+                  <div>
+                    <strong>{nome}</strong>
+                    <small>
+                      {item.distancia_metros != null ? `${Math.round(Number(item.distancia_metros))} m` : "—"}
+                      {" · "}
+                      {item.tempo_deslocamento_min != null ? `${item.tempo_deslocamento_min} min` : "—"}
+                      {" · faltas "}
+                      {String(item.percentual_faltas)}%
+                    </small>
+                  </div>
+                  <button
+                    className="quiet linkish"
+                    type="button"
+                    disabled={carregandoRota === alunoId}
+                    onClick={() => void verTrajetoria(alunoId, nome)}
+                  >
+                    {carregandoRota === alunoId ? "Carregando…" : "Ver trajetória"}
+                  </button>
+                </li>
+              );
+            })}
           </ul>
         </article>
 
@@ -167,6 +198,35 @@ export default function PainelGestao({ students, onToast }: Props) {
         </div>
         {avisoFuturo && <p className="feedback" role="status">{avisoFuturo}</p>}
       </div>
+
+      {rotaAluno && (
+        <div className="modal-backdrop" role="dialog" aria-modal="true" onClick={() => setRotaAluno(null)}>
+          <div className="modal-card" onClick={(event) => event.stopPropagation()}>
+            <div className="roster-heading">
+              <h3>Trajetória — {rotaAluno.nome}</h3>
+              <button className="quiet" type="button" onClick={() => setRotaAluno(null)}>Fechar</button>
+            </div>
+            <p className="form-hint">
+              {Math.round(rotaAluno.result.distancia_metros)} m · {rotaAluno.result.tempo_deslocamento_min} min
+              {" · "}{rotaAluno.result.metodo}
+              {rotaAluno.result.escola_nome ? ` · ${rotaAluno.result.escola_nome}` : ""}
+            </p>
+            <MapaRota
+              origem={rotaAluno.result.origem}
+              destino={rotaAluno.result.destino}
+              geometria={rotaAluno.result.geometria || []}
+              altura={340}
+            />
+            {rotaAluno.result.mapa_osm_url && (
+              <div className="mapa-actions">
+                <a href={rotaAluno.result.mapa_osm_url} target="_blank" rel="noreferrer">
+                  Abrir no OpenStreetMap
+                </a>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </section>
   );
 }

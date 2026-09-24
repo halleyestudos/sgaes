@@ -1,4 +1,4 @@
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 import {
   anonimizarAluno,
   calcularDeslocamento,
@@ -14,6 +14,7 @@ import {
   updateStudent,
   type Aluno,
   type Consentimento,
+  type DeslocamentoResult,
   type HistoricoEscolar,
   type Responsavel,
 } from "./api";
@@ -27,6 +28,7 @@ type RotaDeslocamento = {
   distancia_metros?: number;
   tempo_deslocamento_min?: number;
   metodo?: string;
+  escola_nome?: string;
 };
 const emptyForm = {
   nome: "",
@@ -76,6 +78,7 @@ export default function AlunoCompleto({ onChanged }: Props) {
   const [histUltima, setHistUltima] = useState(true);
   const [mascara, setMascara] = useState<Record<string, unknown> | null>(null);
   const [rota, setRota] = useState<RotaDeslocamento | null>(null);
+  const mapaRef = useRef<HTMLDivElement | null>(null);
 
   const load = async () => {
     const loaded = await getStudents();
@@ -194,31 +197,64 @@ export default function AlunoCompleto({ onChanged }: Props) {
     await loadExtras(Number(id));
   }
 
+  function rotaFromResult(result: DeslocamentoResult): RotaDeslocamento | null {
+    const origem = result.origem;
+    const destino = result.destino;
+    if (!origem || !destino) return null;
+    const latO = Number(origem.latitude);
+    const lonO = Number(origem.longitude);
+    const latD = Number(destino.latitude);
+    const lonD = Number(destino.longitude);
+    if (![latO, lonO, latD, lonD].every((n) => Number.isFinite(n))) return null;
+    return {
+      origem: { latitude: latO, longitude: lonO },
+      destino: { latitude: latD, longitude: lonD },
+      geometria: Array.isArray(result.geometria) ? result.geometria : [],
+      mapa_osm_url: result.mapa_osm_url,
+      distancia_metros: Number(result.distancia_metros),
+      tempo_deslocamento_min: Number(result.tempo_deslocamento_min),
+      metodo: String(result.metodo || ""),
+      escola_nome: result.escola_nome,
+    };
+  }
+
   async function calcGeo() {
-    if (!selectedId) return;
+    if (!selectedId || busy) return;
+    if (!form.latitude.trim() || !form.longitude.trim()) {
+      setMessage("Informe latitude e longitude da residência antes de calcular o deslocamento.");
+      return;
+    }
+    setBusy(true);
+    setMessage("Calculando deslocamento…");
     try {
+      // Persiste coords/modal do formulário antes do cálculo (a API usa o que está no banco).
+      const updated = await updateStudent(Number(selectedId), payloadFromForm());
+      setAlunos((items) => items.map((item) => (item.id === updated.id ? updated : item)));
+
       const result = await calcularDeslocamento(Number(selectedId), form.modal_transporte);
-      const origem = result.origem as { latitude: number; longitude: number } | undefined;
-      const destino = result.destino as { latitude: number; longitude: number } | undefined;
-      if (origem && destino) {
-        setRota({
-          origem,
-          destino,
-          geometria: (result.geometria as number[][]) || [],
-          mapa_osm_url: result.mapa_osm_url as string | undefined,
-          distancia_metros: Number(result.distancia_metros),
-          tempo_deslocamento_min: Number(result.tempo_deslocamento_min),
-          metodo: String(result.metodo),
-        });
+      const parsed = rotaFromResult(result);
+      if (!parsed) {
+        setRota(null);
+        setMessage("Cálculo concluído, mas a API não retornou coordenadas da rota.");
+        return;
       }
+      setRota(parsed);
       setMessage(
-        `Deslocamento: ${result.distancia_metros} m · ${result.tempo_deslocamento_min} min (${result.metodo}` +
-          `${result.escola_nome ? ` · ${result.escola_nome}` : ""}).`,
+        `Deslocamento: ${Math.round(parsed.distancia_metros || 0)} m · ${parsed.tempo_deslocamento_min} min (${parsed.metodo}` +
+          `${parsed.escola_nome ? ` · ${parsed.escola_nome}` : ""}).`,
       );
-      await load();
+      requestAnimationFrame(() => {
+        mapaRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      });
+      try {
+        await load();
+      } catch {
+        /* mapa já exibido; reload é opcional */
+      }
     } catch (error) {
-      setRota(null);
       setMessage(error instanceof Error ? error.message : "Falha no cálculo de deslocamento.");
+    } finally {
+      setBusy(false);
     }
   }
 
@@ -352,28 +388,35 @@ export default function AlunoCompleto({ onChanged }: Props) {
         </div>
         <div className="action-row">
           <button className="primary" type="submit" disabled={busy}>{selectedId ? "Salvar alterações" : "Cadastrar aluno"}</button>
-          {selectedId && <button className="quiet" type="button" onClick={() => void calcGeo()}>Calcular deslocamento</button>}
+          {selectedId && (
+            <button className="quiet" type="button" disabled={busy} onClick={() => void calcGeo()}>
+              {busy ? "Calculando…" : "Calcular deslocamento"}
+            </button>
+          )}
         </div>
-        {rota && (
-          <div className="form-panel" style={{ marginTop: 16 }}>
-            <h3>Rota até a escola</h3>
-            <p className="form-hint">
-              {rota.distancia_metros != null ? `${Math.round(rota.distancia_metros)} m` : "—"}
-              {" · "}
-              {rota.tempo_deslocamento_min != null ? `${rota.tempo_deslocamento_min} min` : "—"}
-              {rota.metodo ? ` · ${rota.metodo}` : ""}
-            </p>
-            <MapaRota origem={rota.origem} destino={rota.destino} geometria={rota.geometria} />
-            <div className="mapa-actions">
-              {rota.mapa_osm_url && (
-                <a href={rota.mapa_osm_url} target="_blank" rel="noreferrer">
-                  Abrir rota no OpenStreetMap
-                </a>
-              )}
-            </div>
-          </div>
-        )}
+        {message && <p className="feedback" role="status">{message}</p>}
       </form>
+
+      {rota && (
+        <div className="form-panel" ref={mapaRef} style={{ marginTop: 16 }}>
+          <h3>Rota até a escola</h3>
+          <p className="form-hint">
+            {rota.distancia_metros != null ? `${Math.round(rota.distancia_metros)} m` : "—"}
+            {" · "}
+            {rota.tempo_deslocamento_min != null ? `${rota.tempo_deslocamento_min} min` : "—"}
+            {rota.metodo ? ` · ${rota.metodo}` : ""}
+            {rota.escola_nome ? ` · ${rota.escola_nome}` : ""}
+          </p>
+          <MapaRota origem={rota.origem} destino={rota.destino} geometria={rota.geometria} altura={320} />
+          <div className="mapa-actions">
+            {rota.mapa_osm_url && (
+              <a href={rota.mapa_osm_url} target="_blank" rel="noreferrer">
+                Abrir rota no OpenStreetMap
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {selectedId && (
         <div className="gestao-grid">

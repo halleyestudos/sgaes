@@ -12,7 +12,7 @@ No container Dokploy (Open Terminal do serviço api):
 
 import asyncio
 import os
-from datetime import date
+from datetime import date, timedelta
 from decimal import Decimal
 from urllib.parse import quote_plus
 
@@ -309,6 +309,48 @@ async def main() -> None:
                 f"{aluno['nome']} → {escola['nome']}: "
                 f"{resultado.distancia_metros:.0f} m · {resultado.tempo_minutos} min · {resultado.metodo}"
             )
+
+        # Chamadas demonstrativas (presenças/faltas) para o painel Deslocamento × faltas.
+        # Alunos mais distantes tendem a ter mais faltas na amostra.
+        print("--- frequência demonstrativa ---")
+        dias = [date.today() - timedelta(days=d) for d in range(1, 11)]
+        # faltas por índice de aluno (0..4): próximo → poucos; longe → mais
+        faltas_por_aluno = [1, 2, 1, 3, 5]
+
+        for idx, aluno in enumerate(ALUNOS):
+            aluno_id = await _scalar(
+                conn,
+                "SELECT id FROM sga.aluno WHERE rede_id = :rede_id AND nome = :nome LIMIT 1",
+                {"rede_id": rede_id, "nome": aluno["nome"]},
+            )
+            turma_id = turma_ids[aluno["escola_idx"]]
+            if aluno_id is None:
+                continue
+            faltas_alvo = faltas_por_aluno[idx]
+            for dia_i, dia in enumerate(dias):
+                presente = dia_i >= faltas_alvo  # primeiros N dias = falta
+                await conn.execute(
+                    text(
+                        """
+                        INSERT INTO sga.frequencia (
+                          rede_id, turma_id, aluno_id, data, ordem, presente, observacao
+                        ) VALUES (
+                          :rede_id, :turma_id, :aluno_id, :data, 1, :presente, :obs
+                        )
+                        ON CONFLICT (turma_id, aluno_id, data, ordem)
+                        DO UPDATE SET presente = EXCLUDED.presente, observacao = EXCLUDED.observacao
+                        """
+                    ),
+                    {
+                        "rede_id": rede_id,
+                        "turma_id": turma_id,
+                        "aluno_id": aluno_id,
+                        "data": dia,
+                        "presente": presente,
+                        "obs": None if presente else "Falta demonstrativa (carga geo ES)",
+                    },
+                )
+            print(f"{aluno['nome']}: 10 registros · {faltas_alvo} falta(s)")
 
     await engine.dispose()
     print("carga_geo_es concluída.")

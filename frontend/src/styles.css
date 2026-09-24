@@ -69,6 +69,10 @@ main { max-width: 1180px; margin: 0 auto; padding: 34px 22px 90px; }
 .mapa-rota { width: 100%; border: 1px solid #bcccdc; border-radius: 4px; margin-top: 12px; z-index: 0; }
 .mapa-actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; margin-top: 8px; }
 .mapa-actions a { color: #0b5ed7; font-size: .85rem; }
+.correlacao-row { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.correlacao-row .linkish { padding: 8px 12px; white-space: nowrap; }
+.modal-backdrop { position: fixed; inset: 0; background: rgba(16, 42, 67, .45); display: grid; place-items: center; z-index: 40; padding: 20px; }
+.modal-card { width: min(720px, 100%); background: #fffdf8; border-top: 3px solid #f4b942; padding: 22px; max-height: 90vh; overflow: auto; }
 @media (max-width: 900px) { .gestao-grid, .future-grid, .fields-3, .metrics-wide { grid-template-columns: 1fr; } }
 footer { position: fixed; bottom: 0; width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 12px max(22px, calc((100vw - 1180px) / 2)); background: #fffdf8; border-top: 1px solid #d9e2ec; color: #627d98; font-size: .78rem; pointer-events: none; }footer button { background: #102a43; color: white; padding: 8px 12px; pointer-events: auto; }
 @media (max-width: 700px) { .topbar, .section-heading { align-items: flex-start; flex-direction: column; }.topbar { gap: 20px; }.controls { width: 100%; }.controls label { flex: 1; }.controls input, .controls select { width: 100%; min-width: 0; }.forms-grid, .management-grid, .enrollment-fields, .turma-filters, .turma-actions-grid { grid-template-columns: 1fr; }.roster-row { grid-template-columns: 28px 1fr; }.roster-buttons { grid-column: 1 / -1; justify-content: start; }.student-row { grid-template-columns: 28px 1fr 26px; }.attendance-label { display: none; }.metrics { grid-template-columns: 1fr; gap: 8px; margin: 24px 0; } footer { position: static; margin-top: 20px; gap: 12px; } }

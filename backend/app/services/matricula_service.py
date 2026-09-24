@@ -28,7 +28,15 @@ class MatriculaService:
             raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="A turma não pertence ao ano letivo informado.")
         ativa = await self.session.scalar(select(Matricula).where(Matricula.aluno_id == aluno_id, Matricula.ano_letivo_id == ano_letivo_id, Matricula.status == "ATIVA"))
         if ativa is not None:
-            raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail="O aluno já possui matrícula ativa neste ano letivo.")
+            turma_atual = await self.session.get(Turma, ativa.turma_id)
+            nome_turma = turma_atual.nome if turma_atual is not None else f"turma {ativa.turma_id}"
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=(
+                    f"O aluno já possui matrícula ativa em «{nome_turma}» neste ano letivo. "
+                    "Use transferir para movê-lo para outra turma."
+                ),
+            )
         matricula = Matricula(rede_id=rede_id, aluno_id=aluno_id, turma_id=turma_id, ano_letivo_id=ano_letivo_id, data_matricula=data_matricula or date.today(), status="ATIVA")
         self.session.add(matricula)
         await self.session.commit()

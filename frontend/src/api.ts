@@ -106,6 +106,15 @@ export type Aluno = {
 };
 export type AlunoPayload = Partial<Omit<Aluno, "id" | "rede_id" | "distancia_metros" | "tempo_deslocamento_min" | "metodo_distancia" | "dados_anonimizados">> & { nome: string; ativo?: boolean };
 export type AlunoTurma = { aluno_id: number; nome: string; matricula_id: number; status: string };
+export type MatriculaAtiva = {
+  matricula_id: number;
+  aluno_id: number;
+  aluno_nome: string;
+  turma_id: number;
+  turma_nome: string;
+  ano_letivo_id: number;
+  status: string;
+};
 export type Escola = {
   id: number;
   nome: string;
@@ -146,6 +155,19 @@ export type EstatisticasRede = { escolas_ativas: number; turmas_ativas: number; 
 export type Professor = { id: number; nome: string; email: string; escola_id: number | null; perfil: string };
 export type AmbienteBairro = { bairro: string; alunos: number; frequencia_media: number | null; com_internet: number; com_materiais: number; detalhes: Array<Record<string, unknown>> };
 export type CorrelacaoGeo = { amostra: number; correlacao_pearson_distancia_faltas: number | null; itens: Array<Record<string, unknown>> };
+export type DeslocamentoResult = {
+  aluno_id: number;
+  escola_id: number;
+  escola_nome?: string;
+  origem: { latitude: number; longitude: number };
+  destino: { latitude: number; longitude: number };
+  distancia_metros: number;
+  tempo_deslocamento_min: number;
+  metodo: string;
+  modal?: string;
+  geometria?: number[][];
+  mapa_osm_url?: string;
+};
 export type ModuloFuturo = { codigo: string; titulo: string; descricao: string; status: string };
 
 export const login = (email: string, senha: string) => api<AuthResponse>("/api/v1/auth/login", { method: "POST", body: JSON.stringify({ email, senha }) });
@@ -155,6 +177,8 @@ export const getAlerts = () => api<Alert[]>("/api/v1/frequencia/busca-ativa");
 export const sendAttendance = (payload: unknown) => api<unknown[]>("/api/v1/frequencia/chamada", { method: "POST", body: JSON.stringify(payload) });
 export const getStudents = () => api<Aluno[]>("/api/v1/alunos?limit=200");
 export const getClassStudents = (turmaId: number) => api<AlunoTurma[]>(`/api/v1/matriculas/turma/${turmaId}/alunos`);
+export const getActiveEnrollments = (anoLetivoId?: number) =>
+  api<MatriculaAtiva[]>(`/api/v1/matriculas/ativas${anoLetivoId != null ? `?ano_letivo_id=${anoLetivoId}` : ""}`);
 export const getSchools = () => api<Escola[]>("/api/v1/escolas?limit=200");
 export const getSchoolYears = () => api<AnoLetivo[]>("/api/v1/anos-letivos?limit=200");
 export const getClasses = () => api<Turma[]>("/api/v1/turmas?limit=200");
@@ -178,7 +202,7 @@ export const getHistoricos = (alunoId: number) => api<HistoricoEscolar[]>(`/api/
 export const createHistorico = (payload: { aluno_id: number; nome_escola: string; codigo_inep?: string; ano?: number; serie?: string; ultima_escola?: boolean }) =>
   api<HistoricoEscolar>("/api/v1/historicos-escolares", { method: "POST", body: JSON.stringify(payload) });
 export const calcularDeslocamento = (alunoId: number, modal?: string) =>
-  api<Record<string, unknown>>("/api/v1/geo/deslocamento", { method: "POST", body: JSON.stringify({ aluno_id: alunoId, modal_transporte: modal || null, persistir: true }) });
+  api<DeslocamentoResult>("/api/v1/geo/deslocamento", { method: "POST", body: JSON.stringify({ aluno_id: alunoId, modal_transporte: modal || null, persistir: true }) });
 export const getCorrelacaoGeo = () => api<CorrelacaoGeo>("/api/v1/geo/correlacao-faltas");
 export const getEstatisticas = () => api<EstatisticasRede>("/api/v1/gestao/estatisticas");
 export const getProfessores = () => api<Professor[]>("/api/v1/gestao/professores");

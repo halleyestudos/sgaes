@@ -10,7 +10,14 @@ from app.models.aluno import Aluno
 from app.models.matricula import Matricula
 from app.models.turma import Turma
 from app.models.usuario import Usuario
-from app.schemas.matricula import AlunoTurmaRead, EncerramentoCreate, MatriculaCreate, MatriculaRead, TransferenciaCreate
+from app.schemas.matricula import (
+    AlunoTurmaRead,
+    EncerramentoCreate,
+    MatriculaAtivaRead,
+    MatriculaCreate,
+    MatriculaRead,
+    TransferenciaCreate,
+)
 from app.services.matricula_service import MatriculaService
 
 router = APIRouter(prefix="/matriculas", tags=["matriculas"])
@@ -21,6 +28,41 @@ async def criar_matricula(payload: MatriculaCreate, usuario: Usuario = Depends(r
     dados = payload.model_dump()
     dados["rede_id"] = usuario.rede_id
     return await MatriculaService(db).criar(**dados)
+
+
+@router.get(
+    "/ativas",
+    response_model=list[MatriculaAtivaRead],
+    summary="Listar matrículas ativas do ano",
+    description="Lista matrículas ativas da rede, opcionalmente filtradas por ano letivo.",
+)
+async def listar_matriculas_ativas(
+    ano_letivo_id: int | None = None,
+    usuario: Usuario = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> list[MatriculaAtivaRead]:
+    stmt = (
+        select(Matricula.id, Aluno.id, Aluno.nome, Turma.id, Turma.nome, Matricula.ano_letivo_id, Matricula.status)
+        .join(Aluno, Aluno.id == Matricula.aluno_id)
+        .join(Turma, Turma.id == Matricula.turma_id)
+        .where(Matricula.rede_id == usuario.rede_id, Matricula.status == "ATIVA")
+        .order_by(Aluno.nome)
+    )
+    if ano_letivo_id is not None:
+        stmt = stmt.where(Matricula.ano_letivo_id == ano_letivo_id)
+    rows = (await db.execute(stmt)).all()
+    return [
+        MatriculaAtivaRead(
+            matricula_id=matricula_id,
+            aluno_id=aluno_id,
+            aluno_nome=aluno_nome,
+            turma_id=turma_id,
+            turma_nome=turma_nome,
+            ano_letivo_id=ano_id,
+            status=status_,
+        )
+        for matricula_id, aluno_id, aluno_nome, turma_id, turma_nome, ano_id, status_ in rows
+    ]
 
 
 @router.get("/turma/{turma_id}/alunos", response_model=list[AlunoTurmaRead], summary="Listar alunos da turma", description="Lista os alunos com matrícula ativa na turma da rede autenticada.", responses={200: {"description": "Alunos listados."}, 401: {"description": "Token inválido ou ausente."}, 404: {"description": "Turma não encontrada."}})
