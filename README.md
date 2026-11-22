@@ -10,7 +10,7 @@ Sistema de Gestão Acadêmica para redes municipais de ensino.
 - `docker-compose.yml`: PostgreSQL local
 - `docker-compose.prod.yml`: db + api + web + Caddy
 
-## Como executar no Windows
+## Desenvolvimento local no Windows
 
 ```powershell
 docker compose up -d
@@ -21,7 +21,7 @@ pip install -e .
 Copy-Item .env.example .env
 python -m alembic upgrade head
 python -m app.seed
-python -m uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
+python -m uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 Frontend:
@@ -34,11 +34,7 @@ npm run dev
 
 Abra `http://localhost:5173`. Se o Vite estiver no WSL, use o endereço Network que ele imprimir.
 
-Usuários de demonstração após o seed:
-
-- `gestor@sga.local` / `Gestor@123`
-- `secretaria@sga.local` / `Secretaria@123`
-- `professor@sga.local` / `Professor@123`
+O seed cria contas de demonstração para desenvolvimento local.
 
 O `rede_id` não vem mais do frontend. Ele entra no JWT no login e as rotas usam só esse valor.
 
@@ -49,14 +45,14 @@ Arquivo: `docker-compose.dokploy.yml` (sem Caddy; o Traefik do Dokploy cuida de 
 1. Em https://admin.sgaes.tech/ crie um **Project** → **Compose**.
 2. Source: GitHub `halleyestudos/sgaes`, branch `main`.
 3. Compose path: `docker-compose.dokploy.yml`.
-4. Aba **Environment** (valores reais, não os de exemplo):
+4. Na aba **Environment**, configure uma senha exclusiva para o PostgreSQL e uma chave de assinatura JWT aleatória, longa e exclusiva. Use os identificadores abaixo e preencha os valores diretamente no Dokploy.
 
 ```env
-POSTGRES_PASSWORD=...senha-forte...
-SECRET_KEY=...chave-longa-aleatoria...
+POSTGRES_PASSWORD=
+SECRET_KEY=
 CORS_ORIGINS=https://sgaes.tech,https://www.sgaes.tech
 JWT_EXPIRE_MINUTES=480
-RUN_SEED=true
+RUN_SEED=false
 ```
 
 5. Aba **Domains**:
@@ -64,8 +60,7 @@ RUN_SEED=true
    - Service: `web`
    - Port: `80`
    - HTTPS / Let's Encrypt: ligado
-6. **Deploy**. Depois do primeiro seed bem-sucedido, mude `RUN_SEED=false` e redeploy.
-7. Login demo: `gestor@sga.local` / `Gestor@123`
+6. Mantenha `RUN_SEED=false` em todos os deploys de produção. Use contas individuais provisionadas para o ambiente.
 
 O nginx do `web` encaminha `/api`, `/health` e `/docs` para o serviço `api`.
 
@@ -77,7 +72,7 @@ Use se **não** estiver usando Dokploy/Traefik (conflita nas portas 80/443):
 
 ```powershell
 Copy-Item .env.prod.example .env
-# edite POSTGRES_PASSWORD, SECRET_KEY e DOMAIN=sgaes.tech
+# Preencha POSTGRES_PASSWORD e SECRET_KEY com valores exclusivos e mantenha RUN_SEED=false.
 docker compose -f docker-compose.prod.yml up -d --build
 ```
 
