@@ -28,7 +28,7 @@ services:
       APP_DEBUG: "false"
       JWT_EXPIRE_MINUTES: ${JWT_EXPIRE_MINUTES:-480}
       CORS_ORIGINS: ${CORS_ORIGINS:-https://sgaes.tech}
-      RUN_SEED: ${RUN_SEED:-true}
+      RUN_SEED: ${RUN_SEED:-false}
     depends_on:
       db:
         condition: service_healthy
